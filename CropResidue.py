@@ -7,8 +7,10 @@ import cv2
 import keras
 from PIL import Image
 
-os.environ['KERAS_BACKEND'] = 'tensorflow'
 
+gpu_index = os.getenv("CUDA_VISIBLE_DEVICES")
+print(f"Using GPU: {gpu_index}")
+os.environ["CUDA_VISIBLE_DEVICES"] = gpu_index
 patch_size = 8
 num_of_patches = (512//patch_size)**2
 
@@ -127,7 +129,6 @@ c9 = keras.layers.Dropout(0.1)(c9)
 c9 = keras.layers.Conv2D(16, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(c9)
 
 outputs = keras.layers.Conv2D(2, (1,1), activation='sigmoid')(c9)
-
 model = keras.Model(inputs=[inputs], outputs=[outputs])
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 print(model.summary())
