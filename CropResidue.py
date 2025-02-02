@@ -17,8 +17,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = gpu_index
 image_directory = "/scratch/project/hackathon/data/CropResiduePredictionChallenge/images_512/original/Limbaugh1-1m20220328"
 
 
-
-
 IMG_HEIGHT = 128
 IMG_WIDTH = 128
 IMG_CHANNELS = 3

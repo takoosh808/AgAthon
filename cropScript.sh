@@ -12,31 +12,18 @@
 
 # Define python file to run
 PYTHON_FILE="CropResidue.py"
-
-
-# Function to run the Python script
-run_python_script() {
-    echo "Running Python script: $PYTHON_FILE"
-    log_message "Running Python script: $PYTHON_FILE"
-
-    run "$PYTHON_FILE"
-
-    # Check if Python script executed successfully
-    if [[ $? -eq 0 ]]; then
-        log_message "Python script executed successfully."
-        echo "Python script executed successfully."
-    else
-        log_message "Error: Python script failed to execute."
-        echo "Error: Python script failed to execute."
-        deactivate
-        exit 1
-    fi
-
-    echo "Completed job on node $HOSTNAME"
-}
-
-# Main execution flow
 module load singularity
-singularity exec --nv \
-    /scratch/project/hackathon/data/CropResiduePredictionChallenge/my-tf-container.sif \ 
-    run_python_script()
+module load anaconda3
+
+export TF_ENABLE_ONEDNN_OPTS=0
+
+source activate cropenv
+echo "Running Python script: $PYTHON_FILE"
+
+
+singularity exec --nv /scratch/project/hackathon/data/CropResiduePredictionChallenge/my-tf-container.sif \
+    python3 "$PYTHON_FILE"
+fi
+
+echo "Completed job on node $HOSTNAME"
+source deactivate
