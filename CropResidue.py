@@ -12,14 +12,14 @@ os.environ['KERAS_BACKEND'] = 'tensorflow'
 patch_size = 8
 num_of_patches = (512//patch_size)**2
 
-image_directory = "C:/Users/takoo/OneDrive/Desktop/Images/Training/"
+image_directory = "labels/"
 trainset = []
 label = []
 
-cropResidue_images = os.listdir(image_directory + "CropResidue/")
+cropResidue_images = os.listdir(image_directory + "residue_background/")
 for i, image_name in enumerate(cropResidue_images):
     if (image_name.split('.')[1] == 'jpg' or image_name.split('.')[1] == 'tif'):
-        image = cv2.imread(image_directory + "CropResidue/" + image_name)
+        image = cv2.imread(image_directory + "residue_background/" + image_name)
         image = Image.fromarray(image, 'RGB')
         trainset.append(np.array(image))
         label.append(0)
@@ -34,63 +34,60 @@ for i, image_name in enumerate(sunlitShaded_images):
 
 
 INPUT_SHAPE = (512, 512, 3)
-inp = keras.layers.Input(shape=INPUT_SHAPE)
+inputs = keras.layers.Input(shape=INPUT_SHAPE)
 
-conv1 = keras.layers.Conv2D(32, kernel_size=(3, 3), activation='relu', padding='same')(inp)
+s = keras.layers.Lambda(lambda x: x / 255)(inputs)
 
+conv1 = keras.layers.Conv2D(32, kernel_size=(3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(s)
+conv1 = keras.layers.Dropout(0.1)(conv1)
+conv1 = keras.layers.Conv2D(32, kernel_size=(3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(conv1)
 pool1 = keras.layers.MaxPooling2D(pool_size=(2, 2))(conv1)
-norm1 = keras.layers.BatchNormalization(axis=-1)(pool1)
-drop1 = keras.layers.Dropout(0.2)(norm1)
 
-conv2 = keras.layers.Conv2D(32, kernel_size=(3, 3), activation='relu', padding='same')(drop1)
-
+conv2 = keras.layers.Conv2D(64, kernel_size=(3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(conv1)
+conv2 = keras.layers.Dropout(0.1)(conv2)
+conv2 = keras.layers.Conv2D(64, kernel_size=(3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(conv2)
 pool2 = keras.layers.MaxPooling2D(pool_size=(2, 2))(conv2)
-norm2 = keras.layers.BatchNormalization(axis=-1)(pool2)
-drop2 = keras.layers.Dropout(0.2)(norm2)
 
-flat = keras.layers.Flatten()(drop2)
+conv3 = keras.layers.Conv2D(128, kernel_size=(3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(conv2)
+conv3 = keras.layers.Dropout(0.2)(conv3)
+conv3 = keras.layers.Conv2D(128, kernel_size=(3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(conv3)
+pool3 = keras.layers.MaxPooling2D(pool_size=(2, 2))(conv3)
 
-hidden1 = keras.layers.Dense(512, activation='relu')(flat)
-norm3 = keras.layers.BatchNormalization(axis=-1)(hidden1)
-drop3 = keras.layers.Dropout(0.2)(norm3)
+conv4 = keras.layers.Conv2D(256, kernel_size=(3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(conv3)
+conv4 = keras.layers.Dropout(0.2)(conv4)
+conv4 = keras.layers.Conv2D(256, kernel_size=(3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(conv4)
+pool4 = keras.layers.MaxPooling2D(pool_size=(2, 2))(conv4)
 
-hidden2 = keras.layers.Dense(256, activation='relu')(drop3)
-norm4 = keras.layers.BatchNormalization(axis=-1)(hidden2)
-drop4 = keras.layers.Dropout(0.2)(norm4)
+conv5 = keras.layers.Conv2D(512, kernel_size=(3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(conv4)
+conv5 = keras.layers.Dropout(0.3)(conv5)
+conv5 = keras.layers.Conv2D(512, kernel_size=(3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(conv5)
 
-out = keras.layers.Dense(2, activation='sigmoid')(drop4)
+unpooling6 = keras.layers.Conv2DTranspose(256, kernel_size = (3,3), strides = (2,2), padding = 'same')(conv5)
+unpooling6 = keras.layers.concatenate([unpooling6, conv4])
+conv6 = keras.layers.Conv3D(256, kernel_size = (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(unpooling6)
+conv6 = keras.layers.Dropout(0.2)(conv6)
+conv6 = keras.layers.Conv3D(256, kernel_size = (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(conv6)
 
-model = keras.Model(inputs=inp, outputs=out)
+unpooling7 = keras.layers.Conv2DTranspose(256, kernel_size = (3,3), strides = (2,2), padding = 'same')(conv6)
+unpooling7 = keras.layers.concatenate([unpooling7, conv3])
+conv7 = keras.layers.Conv3D(256, kernel_size = (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(unpooling7)
+conv7 = keras.layers.Dropout(0.2)(conv7)
+conv7 = keras.layers.Conv3D(256, kernel_size = (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(conv7)
+
+unpooling8 = keras.layers.Conv2DTranspose(256, kernel_size = (3,3), strides = (2,2), padding = 'same')(conv7)
+unpooling8 = keras.layers.concatenate([unpooling8, conv2])
+conv8 = keras.layers.Conv3D(256, kernel_size = (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(unpooling8)
+conv8 = keras.layers.Dropout(0.2)(conv8)
+conv8 = keras.layers.Conv3D(256, kernel_size = (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(conv8)
+
+unpooling9 = keras.layers.Conv2DTranspose(256, kernel_size = (3,3), strides = (2,2), padding = 'same')(conv8)
+unpooling9 = keras.layers.concatenate([unpooling9, conv1])
+conv9 = keras.layers.Conv3D(256, kernel_size = (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(unpooling9)
+conv9 = keras.layers.Dropout(0.2)(conv9)
+conv9 = keras.layers.Conv3D(256, kernel_size = (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(conv9)
+
+outputs = keras.layers.Conv2D(1, (1,1), activation='sigmoid')(conv9)
+
+model = keras.Model(inputs=[inputs], outputs=[outputs])
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 print(model.summary())
-
-from sklearn.model_selection import train_test_split
-from keras._tf_keras.keras.utils import to_categorical
-X_train, X_test, y_train, y_test = train_test_split(trainset, to_categorical(np.array(label)), test_size=0.2, random_state=42)
-
-history = model.fit(np.array(X_train), y_train, batch_size = 64, verbose = 1, epochs = 25, validation_split = 0.1, shuffle = False)
-
-print("Test_Accuracy: {:.2f}%".format(model.evaluate(np.array(X_test), np.array(y_test))[1]*100))
-f, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-t = f.suptitle('CNN Performance', fontsize=12)
-f.subplots_adjust(top=0.85, wspace=0.3)
-
-max_epoch = len(history.history['accuracy'])+1
-epoch_list = list(range(1,max_epoch))
-ax1.plot(epoch_list, history.history['accuracy'], label='Train Accuracy')
-ax1.plot(epoch_list, history.history['val_accuracy'], label='Validation Accuracy')
-ax1.set_xticks(np.arange(1, max_epoch, 5))
-ax1.set_ylabel('Accuracy Value')
-ax1.set_xlabel('Epoch')
-ax1.set_title('Accuracy')
-l1 = ax1.legend(loc="best")
-
-ax2.plot(epoch_list, history.history['loss'], label='Train Loss')
-ax2.plot(epoch_list, history.history['val_loss'], label='Validation Loss')
-ax2.set_xticks(np.arange(1, max_epoch, 5))
-ax2.set_ylabel('Loss Value')
-ax2.set_xlabel('Epoch')
-ax2.set_title('Loss')
-l2 = ax2.legend(loc="best")
-
-model.save('cropResidue.h5')
