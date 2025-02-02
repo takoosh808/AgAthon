@@ -1,6 +1,7 @@
 import numpy as np
 np.random.seed(1000)
 from sklearn.model_selection import train_test_split
+from keras import applications
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import matplotlib.pyplot as plt
@@ -13,8 +14,8 @@ gpu_index = os.getenv("CUDA_VISIBLE_DEVICES")
 print(f"Using GPU: {gpu_index}")
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_index
 
-image_directory = "C:/Users/takoo/OneDrive/Desktop/Images/Training/"
-dataset = keras.preprocessing.image_dataset_from_directory(image_directory, labels=None, image_size=(128,128), batch_size=32)
+image_directory = "/scratch/project/hackathon/data/CropResiduePredictionChallenge/images_512/original/Limbaugh1-1m20220328"
+
 
 
 
@@ -22,66 +23,64 @@ IMG_HEIGHT = 128
 IMG_WIDTH = 128
 IMG_CHANNELS = 3
 
-input = keras.layers.Input(shape=(128,128,3))
+input = keras.layers.Input(shape=(IMG_HEIGHT,IMG_WIDTH,IMG_CHANNELS))
+
+#using resnet50 (pretrained processor) as backbone
+base_model = keras.applications.resnet50(input_tensor=input, include_top=False, weights='imagenet')
+base_model.trainable=False #freeze backbone during initial training
 
 s = keras.layers.Lambda(lambda x: x / 255)(input)
 
-c1 = keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(s)
-c1 = keras.layers.Dropout(0.1)(c1)
-c1 = keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(c1)
-p1 = keras.layers.MaxPooling2D((2, 2))(c1)
+c1 = base_model.get_layer("conv1_relu").output #64 filters
+c2 = base_model.get_layer("conv2_block3_out").output #256 filters
+c3 = base_model.get_layer("conv3_block4_out").output #512 filters
+c4 = base_model.get_layer("conv4_block6_out").output #1024 filters
 
-
-c2 = keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(p1)
-c2 = keras.layers.Dropout(0.1)(c2)
-c2 = keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(c2)
-p2 = keras.layers.MaxPooling2D((2, 2))(c2)
-
-
-c3 = keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(p2)
-c3 = keras.layers.Dropout(0.2)(c3)
-c3 = keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(c3)
-p3 = keras.layers.MaxPooling2D((2, 2))(c3)
-
-
-c4 = keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(p3)
-c4 = keras.layers.Dropout(0.2)(c4)
-c4 = keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(c4)
-p4 = keras.layers.MaxPooling2D((2, 2))(c4)
-
-c5 = keras.layers.Conv2D(256, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(p4)
+#Bottleneck (lowest level of u-net)
+c5 = keras.layers.Conv2D(2048, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(c4)
 c5 = keras.layers.Dropout(0.3)(c5)
-c5 = keras.layers.Conv2D(256, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(c5)
+c5 = keras.layers.Conv2D(2048, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(c5)
 
-u6 = keras.layers.Conv2DTranspose(128, (2,2), strides = (2,2), padding = 'same')(c5)
+u6 = keras.layers.Conv2DTranspose(1024, (2,2), strides = (2,2), padding = 'same')(c5)
 u6 = keras.layers.Concatenate()([u6,c4])
-c6 = keras.layers.Conv2D(128, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(u6)
+c6 = keras.layers.Conv2D(1024, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(u6)
 c6 = keras.layers.Dropout(0.2)(c6)
-c6 = keras.layers.Conv2D(128, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(c6)
+c6 = keras.layers.Conv2D(1024, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(c6)
 
-u7 = keras.layers.Conv2DTranspose(64, (2,2), strides = (2,2), padding = 'same')(c6)
+u7 = keras.layers.Conv2DTranspose(512, (2,2), strides = (2,2), padding = 'same')(c6)
 u7 = keras.layers.Concatenate()([u7, c3])
-c7 = keras.layers.Conv2D(64, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(u7)
+c7 = keras.layers.Conv2D(512, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(u7)
 c7 = keras.layers.Dropout(0.2)(c7)
-c7 = keras.layers.Conv2D(64, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(c7)
+c7 = keras.layers.Conv2D(512, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(c7)
 
-u8 = keras.layers.Conv2DTranspose(32, (2,2), strides = (2,2), padding = 'same')(c7)
+u8 = keras.layers.Conv2DTranspose(256, (2,2), strides = (2,2), padding = 'same')(c7)
 u8 = keras.layers.Concatenate()([u8, c2])
-c8 = keras.layers.Conv2D(32, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(u8)
+c8 = keras.layers.Conv2D(256, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(u8)
 c8 = keras.layers.Dropout(0.1)(c8)
-c8 = keras.layers.Conv2D(32, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(c8)
+c8 = keras.layers.Conv2D(256, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(c8)
 
-u9 = keras.layers.Conv2DTranspose(16, (2,2), strides = (2,2), padding = 'same')(c8)
+u9 = keras.layers.Conv2DTranspose(128, (2,2), strides = (2,2), padding = 'same')(c8)
 u9 = keras.layers.Concatenate()([u9, c1])
-c9 = keras.layers.Conv2D(16, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(u9)
+c9 = keras.layers.Conv2D(128, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(u9)
 c9 = keras.layers.Dropout(0.1)(c9)
-c9 = keras.layers.Conv2D(16, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(c9)
+c9 = keras.layers.Conv2D(128, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(c9)
 
-outputs = keras.layers.Conv2D(2, (1,1), activation='sigmoid')(c9)
+outputs = keras.layers.Conv2D(1, (1,1), activation='sigmoid')(c9)
 
-model = keras.Model(inputs=[s], outputs=[outputs])
+model = keras.Model(inputs=[input], outputs=[outputs])
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 print(model.summary())
+def load_dataset(img_directory, batch_size=32, img_size=(IMG_HEIGHT,IMG_WIDTH)):
+    dataset = keras.preprocessing.image_dataset_from_directory(
+        img_directory, 
+        labels="inferred", 
+        label_mode="binary",
+        image_size=img_size,
+        batch_size=batch_size
+    )
+    return dataset
+
+dataset=load_dataset(image_directory)
 
 for elem in dataset:
     x_train = elem
@@ -108,5 +107,6 @@ for elem in dataset:
     ax2.set_xlabel('Epoch')
     ax2.set_title('Loss')
     l2 = ax2.legend(loc="best")
+
 
 model.save('cropResidue.h5')
