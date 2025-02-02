@@ -6,16 +6,17 @@
 #SBATCH --time=00:05:00  # Wall clock time limit (HH:MM:SS)
 #SBATCH --nodes=1  # Number of nodes
 #SBATCH --ntasks-per-node=1  # Number of tasks per node (1 process)
-#SBATCH --cpus-per-task=2  # Number of cores per task (threads)
+#SBATCH --gpu-task=1  # Number of cores per task (threads)
+
 # Define virtual environment name
-VENV_NAME="myenv"
+# VENV_NAME="myenv"
 
 # Define python file to run
 PYTHON_FILE="CropResidue.py"
 
 # Activate virtual environment
-source ~/$VENV_NAME/bin/activate
-echo "Activated virtual environment: $VENV_NAME"
+# source ~/$VENV_NAME/bin/activate
+# echo "Activated virtual environment: $VENV_NAME"
 
 # Function to run the Python script
 run_python_script() {
@@ -34,9 +35,9 @@ run_python_script() {
         deactivate
         exit 1
     fi
-    deactivate
-    echo "Deactivated virtual environment: $VENV_NAME"
-    log_message "Deactivated virtual environment: $VENV_NAME"
+    # deactivate
+    # echo "Deactivated virtual environment: $VENV_NAME"
+    # log_message "Deactivated virtual environment: $VENV_NAME"
 
     echo "Completed job on node $HOSTNAME"
 }
