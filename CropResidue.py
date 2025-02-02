@@ -1,81 +1,30 @@
 import numpy as np
 np.random.seed(1000)
-import os
+from sklearn.model_selection import train_test_split
 import tensorflow as tf
+import tensorflow_datasets as tfds
 import matplotlib.pyplot as plt
 import cv2
 import keras
 from PIL import Image
-
+import os
 
 gpu_index = os.getenv("CUDA_VISIBLE_DEVICES")
 print(f"Using GPU: {gpu_index}")
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_index
-patch_size = 8
-num_of_patches = (512//patch_size)**2
 
-# image_directory = "labels/"
-# dataset = []
-# label = []
+image_directory = "C:/Users/takoo/OneDrive/Desktop/Images/Training/"
+dataset = keras.preprocessing.image_dataset_from_directory(image_directory, labels=None, image_size=(128,128), batch_size=32)
 
-# cropResidue_images = os.listdir(image_directory + "residue_background/")
-# for i, image_name in enumerate(cropResidue_images):
-#     if (image_name.split('.')[1] == 'jpg'):
-#         image = cv2.imread(image_directory + "residue_background/" + image_name)
-#         image = Image.fromarray(image, 'RGB')
-#         dataset.append(np.array(image))
-#         label.append(0)
-
-# for i, image_name in enumerate(cropResidue_images):
-#     if(image_name.split('.')[1]=='tif'):
-#         image = cv2.imread(image_directory + "residue_background/" + image_name)
-#         image = Image.fromarray(image, 'RGB')
-#         dataset.append(np.array(image))
-#         label.append(1)
-
-
-# def resize(input_image, input_mask):
-#     input_image = tf.image.resize(input_image,(128,128),method="nearest")
-#     input_mask = tf.image.resize(input_mask,(128,128),method="nearest")
-#     return input_image,input_mask
-
-# def augment(input_image, input_mask):
-#     input_image = tf.image.flip_up_down(input_image)
-#     input_mask = tf.image.flip_up_down(input_mask)
-#     return input_image, input_mask
-
-# def normalize(input_image, input_mask):
-#     input_image = tf.cast(input_image,tf.float32)/255.0
-#     input_mask -= 1
-#     return input_image, input_mask
-
-# def load_image_train(datapoint):
-#    input_image = datapoint["image"]
-#    input_mask = datapoint["segmentation_mask"]
-#    input_image, input_mask = resize(input_image, input_mask)
-#    input_image, input_mask = augment(input_image, input_mask)
-#    input_image, input_mask = normalize(input_image, input_mask)
-
-#    return input_image, input_mask
-
-# def load_image_test(datapoint):
-#    input_image = datapoint["image"]
-#    input_mask = datapoint["segmentation_mask"]
-#    input_image, input_mask = resize(input_image, input_mask)
-#    input_image, input_mask = normalize(input_image, input_mask)
-
-#    return input_image, input_mask
-
-# train_dataset = dataset["train"].map(load_image_train, num_parallel_calls = tf.data.AUTOTUNE)
-# test_dataset = dataset["test"].map(load_image_test, num_parallel_calls=tf.data.AUTOTUNE)
 
 
 IMG_HEIGHT = 128
 IMG_WIDTH = 128
 IMG_CHANNELS = 3
-inputs = keras.layers.Input((IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS))
 
-s = keras.layers.Lambda(lambda x: x / 255)(inputs)
+input = keras.layers.Input(shape=(128,128,3))
+
+s = keras.layers.Lambda(lambda x: x / 255)(input)
 
 c1 = keras.layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer = 'he_normal', padding='same')(s)
 c1 = keras.layers.Dropout(0.1)(c1)
@@ -129,6 +78,35 @@ c9 = keras.layers.Dropout(0.1)(c9)
 c9 = keras.layers.Conv2D(16, (3,3), activation ='relu', kernel_initializer='he_normal', padding = 'same')(c9)
 
 outputs = keras.layers.Conv2D(2, (1,1), activation='sigmoid')(c9)
-model = keras.Model(inputs=[inputs], outputs=[outputs])
+
+model = keras.Model(inputs=[s], outputs=[outputs])
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 print(model.summary())
+
+for elem in dataset:
+    x_train = elem
+    y_train = elem   
+    (x_train, y_train), (x_test,y_test) = train_test_split(x_train,y_train, train_size=0.8, test_size=0.1, random_state=32)
+    history = model.fit(x = x_train, y = y_train,verbose = 1, epochs=5,steps_per_epoch=32, validation_split=0.1, shuffle = False)
+    print("Test_Accuracy: {:.2f}%".format(model.evaluate(np.array(x_test), np.array(y_test))[1]*100))
+    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    t = f.suptitle('CNN Performance', fontsize=12)
+    f.subplots_adjust(top=0.85, wspace=0.3)
+    max_epoch = len(history.history['accuracy'])+1
+    epoch_list = list(range(1,max_epoch))
+    ax1.plot(epoch_list, history.history['accuracy'], label='Train Accuracy')
+    ax1.plot(epoch_list, history.history['val_accuracy'], label='Validation Accuracy')
+    ax1.set_xticks(np.arange(1, max_epoch, 5))
+    ax1.set_ylabel('Accuracy Value')
+    ax1.set_xlabel('Epoch')
+    ax1.set_title('Accuracy')
+    l1 = ax1.legend(loc="best")
+    ax2.plot(epoch_list, history.history['loss'], label='Train Loss')
+    ax2.plot(epoch_list, history.history['val_loss'], label='Validation Loss')
+    ax2.set_xticks(np.arange(1, max_epoch, 5))
+    ax2.set_ylabel('Loss Value')
+    ax2.set_xlabel('Epoch')
+    ax2.set_title('Loss')
+    l2 = ax2.legend(loc="best")
+
+model.save('cropResidue.h5')
